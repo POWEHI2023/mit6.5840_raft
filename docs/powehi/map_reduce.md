@@ -23,3 +23,10 @@ We have given you a little code to start you off. The "main" routines for the co
 ## Question(s)
 
 - `ihash(key) % NReduce`有什么作用？
+
+# Continue
+
+Map任务接收到一个Filename，读取这个file，调用mapf获取KeyValue，将Key值映射到nReduce，存储Value。
+将映射之后的结构以二进制的方式存储到文件里，供后续Reduce任务读取这个结构。
+
+Reduce任务获取相同Key值的所有Value，对Key与对应的所有Value做一次reducef操作，获取一个output，将结果写到一个唯一的文件里。
