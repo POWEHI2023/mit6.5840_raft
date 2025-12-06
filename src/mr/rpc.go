@@ -23,6 +23,7 @@ const (
 	WorkerSubmitTask                     // Worker执行结束后提交任务
 	CoorRspMapTask                       // 给Wroker发送Map任务
 	CoorRspReduceTask                    // 给Worker发送Reduce任务
+	CoorNoTaskToAlloc                    // 没有任务可以分配
 	CoorExitWorker                       // 全部执行结束后，给所有Worker发送Exit命令
 )
 
@@ -36,6 +37,8 @@ func (c *CommandType) ToString() string {
 		return "CoorRspMapTask"
 	case CoorRspReduceTask:
 		return "CoorRspReduceTask"
+	case CoorNoTaskToAlloc:
+		return "CoorNoTaskToAlloc"
 	case CoorExitWorker:
 		return "CoorExitWorker"
 	default:

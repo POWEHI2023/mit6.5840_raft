@@ -21,8 +21,9 @@ type Coordinator struct {
 	isOver    bool             // 是否执行结束
 
 	// task_id:task_file
-	running    map[uint64]MapTaskType // 正在执行的任务
-	complished map[uint64]MapTaskType // 已经完成的任务
+	running    map[uint64]MapTaskType    // 正在执行的Map任务
+	reducing   map[uint64]ReduceTaskType // 正在执行的Reduce任务
+	complished map[uint64]MapTaskType    // 已经完成的任务
 	// 即不正在执行，也没有完成的任务，就是超时之后重新入任务队列的任务
 
 }
@@ -52,6 +53,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 
 	c.isOver = false
 	c.running = make(map[uint64]MapTaskType)
+	c.reducing = make(map[uint64]ReduceTaskType)
 	c.complished = make(map[uint64]MapTaskType)
 
 	log.Println("Listening...")
@@ -120,25 +122,34 @@ func (s *StateMachine) TriggerEvent(
 func (s *StateMachine) AllocTaskForWorker(resp *CoorResponse) {
 	s.AllocTaskForWorkerHelper(resp)
 	// TODO: 启动定时器，定时器绑定任务ID，超时任务重新加入任务队列
-
+	s.coor.Lock()
+	switch resp.Command { // 分配任务之后记录任务，任务ID是唯一的，但防止内存变动导致错误，还是加锁吧......
+	case CoorRspMapTask:
+		s.coor.running[resp.TaskId] = resp.MapTask
+	case CoorRspReduceTask:
+		s.coor.reducing[resp.TaskId] = resp.ReduceTask
+	default:
+	}
 }
 
 // 当动作是RequestTask时，设置CoorResponse内部的值，分配任务
 func (s *StateMachine) AllocTaskForWorkerHelper(resp *CoorResponse) {
+	// 如果所有任务都执行完成，发送结束的指令
 	if s.coor.nReduce == 0 && len(s.coor.tasks) == 0 && len(s.coor.running) == 0 {
 		s.coor.isOver = true
+		resp.Command = CoorExitWorker
 		return
 	}
-
+	// 否则检查是否还有任务可以分配
 	select {
-	case task := <-s.coor.tasks: // 获得一个MapTask
+	case task := <-s.coor.tasks: // 还有Map任务可以分配，获得一个MapTask
 		resp.TaskId = s.coor.NextTaskId()
 		resp.Command = CoorRspMapTask
 		resp.MapTask = task
 	default: // 检查ReduceTask或者返回结束
 		reduceNum := s.coor.FetchReduceNum()
-		if reduceNum < 0 {
-			resp.Command = CoorExitWorker
+		if reduceNum < 0 { // 所有Reduce任务也已经分配完成，暂时没有任务可以分配
+			resp.Command = CoorNoTaskToAlloc
 		} else {
 			// 分配一个Reduce任务
 			filenames := make([]string, 0)
@@ -172,20 +183,28 @@ func (s *StateMachine) ProcessSubmitHelper(submit *WrokerRequest, resp *CoorResp
 		_, exist := s.coor.complished[tid]
 		if exist == true {
 			os.Remove(submit.ResultFile)
+
 			go s.TriggerEvent(RequestTask, submit, resp)
 			return
 		}
 	}
 	s.coor.Lock() // 如果未完成，检查是否在执行队列中，处理完成的任务
 	val, exist := s.coor.running[tid]
-	if exist == false {
+	_, rdcExist := s.coor.reducing[tid]
+	if exist == false && rdcExist == false {
 		os.Remove(submit.ResultFile)
 		go s.TriggerEvent(RequestTask, submit, resp)
 		return
 	}
-	val.ResultFile = submit.ResultFile
-	s.coor.complished[tid] = val
-
+	if exist == true { // 记录Map执行完成的中间文件
+		val.ResultFile = submit.ResultFile
+		s.coor.complished[tid] = val
+		delete(s.coor.running, tid)
+	} else if rdcExist == true { // 不用记录最终结果
+		delete(s.coor.reducing, tid)
+	} else {
+		/* do nothing */
+	}
 	go s.TriggerEvent(RequestTask, submit, resp)
 }
 
