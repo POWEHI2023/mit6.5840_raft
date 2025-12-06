@@ -147,11 +147,16 @@ func (s *StateMachine) AllocTaskForWorkerHelper(resp *CoorResponse) {
 		resp.Command = CoorRspMapTask
 		resp.MapTask = task
 	default: // 检查ReduceTask或者返回结束
-		reduceNum := s.coor.FetchReduceNum()
-		if reduceNum < 0 { // 所有Reduce任务也已经分配完成，暂时没有任务可以分配
-			resp.Command = CoorNoTaskToAlloc
+		if len(s.coor.running) != 0 { // 在所有Map任务执行结束前不分配Reduce任务
+			resp.Command = CoorNoTaskToAlloc // 等待后续有任务再分配
+			return
+		}
+
+		reduceNum := s.coor.FetchReduceNum() // 开始分配Reduce任务
+		if reduceNum < 0 {                   // 所有Reduce任务也已经分配完成，暂时没有任务可以分配
+			resp.Command = CoorNoTaskToAlloc // 可能后续有超时未完成任务需要重新分配
 		} else {
-			// 分配一个Reduce任务
+			// 开始分配一个Reduce任务
 			filenames := make([]string, 0)
 			for _, v := range s.coor.complished {
 				filenames = append(filenames, v.ResultFile)
