@@ -44,20 +44,24 @@ func (c *CommandType) ToString() string {
 }
 
 type MapTaskType struct {
-	FileName string
+	FileName   string
+	ResultFile string
 }
 
 type ReduceTaskType struct {
+	ReduceIndex int64
+	FromFiles   []string
+	ResultFile  string
 }
 
 type WrokerRequest struct {
-	TaskId     int         // 如果提交任务，所提交任务的ID
+	TaskId     uint64      // 如果提交任务，所提交任务的ID
 	Command    CommandType // 任务类型
 	ResultFile string      // 任务结果文件
 }
 
 type CoorResponse struct {
-	TaskId     int            // 分配任务ID
+	TaskId     uint64         // 分配任务ID
 	Command    CommandType    // 分配的任务类型
 	ReduceTask ReduceTaskType // 分配的Reduce任务
 	MapTask    MapTaskType    // 分配的Map任务

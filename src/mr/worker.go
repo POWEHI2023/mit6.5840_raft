@@ -29,14 +29,14 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the coordinator.
 
-	CallExample()
+	StartWorker()
 
 }
 
 // example function to show how to make an RPC call to the coordinator.
 //
 // the RPC argument and reply types are defined in rpc.go.
-func CallExample() {
+func StartWorker() {
 
 	// declare an argument structure.
 	args := WrokerRequest{}
@@ -50,7 +50,7 @@ func CallExample() {
 	// the "Coordinator.Example" tells the
 	// receiving server that we'd like to call
 	// the Example() method of struct Coordinator.
-	ok := call("Coordinator.Example", &args, &reply)
+	ok := call("Coordinator.CoordinatorHandler", &args, &reply)
 	if ok {
 		// reply.Y should be 100.
 		fmt.Printf("reply.Y %v\n", 0)
